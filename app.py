@@ -72,12 +72,12 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("genkey", gen_key))
 
 # ---------------- INIT BOT ----------------
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
 async def init_bot():
     await application.initialize()
     await application.start()
-
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 
 loop.run_until_complete(init_bot())
 
@@ -111,11 +111,11 @@ def telegram_webhook():
     data = request.get_json(force=True)
 
     asyncio.run_coroutine_threadsafe(
-    application.process_update(
-        Update.de_json(data, application.bot)
-    ),
-    loop
-)
+        application.process_update(
+            Update.de_json(data, application.bot)
+        ),
+        loop
+    )
 
     return "OK"
 
@@ -129,4 +129,4 @@ def set_webhook():
         return "OK"
 
     future = asyncio.run_coroutine_threadsafe(setup(), loop)
-return future.result()
+    return future.result()
