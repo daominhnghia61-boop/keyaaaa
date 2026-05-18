@@ -72,11 +72,7 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("genkey", gen_key))
 
 # ---------------- INIT BOT (QUAN TRỌNG) ----------------
-async def init_bot():
-    await application.initialize()
-    await application.start()
 
-asyncio.run(init_bot())
 
 # ---------------- FLASK ROUTES ----------------
 
