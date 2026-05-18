@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import datetime
 import secrets
@@ -7,11 +8,22 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+# ---------------------------------------------------------------------------
+# Logging configuration
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
 BOT_TOKEN = "8798908847:AAF5jX_UKtiE4BtUWAVEsJ7_so0BWqbf8Y4"
 ADMIN_ID = 8522186660
 KEYS_FILE = "keys.json"
 
 app = Flask(__name__)
+logger.info("Flask application object created")
 
 def load_keys():
     if not os.path.exists(KEYS_FILE):
@@ -63,10 +75,20 @@ def run_flask():
 def start_bot():
     """Build and start the Telegram bot polling in the current thread.
     Call this from a background thread so it does not block the WSGI server."""
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("genkey", gen_key))
-    application.run_polling()
+    logger.info("start_bot() called — building Telegram application...")
+    try:
+        application = Application.builder().token(BOT_TOKEN).build()
+        logger.info("Telegram application built successfully")
+
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("genkey", gen_key))
+        logger.info("Command handlers registered: /start, /genkey")
+
+        logger.info("Starting bot polling — bot is now listening for updates")
+        application.run_polling()
+        logger.info("Bot polling stopped (run_polling returned)")
+    except Exception as exc:
+        logger.exception("start_bot() raised an unhandled exception: %s", exc)
 
 if __name__ == "__main__":
     # Chạy Flask trong thread phụ
