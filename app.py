@@ -4,6 +4,7 @@ import os
 import datetime
 import secrets
 import threading
+import __main__ as _main_module
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -69,13 +70,17 @@ def check_key():
     return "EXPIRED"
 
 def run_flask():
+    """Run Flask dev server — used only when app.py is the main script."""
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, threaded=True)
 
-def start_bot():
-    """Build and start the Telegram bot polling in the current thread.
-    Call this from a background thread so it does not block the WSGI server."""
-    logger.info("start_bot() called — building Telegram application...")
+def run_bot_main_thread():
+    """Build and start Telegram bot polling on the calling (main) thread.
+
+    run_polling() installs asyncio signal handlers which are only allowed on
+    the main thread.  Calling this from any other thread raises RuntimeError.
+    """
+    logger.info("run_bot_main_thread() — building Telegram application...")
     try:
         application = Application.builder().token(BOT_TOKEN).build()
         logger.info("Telegram application built successfully")
@@ -84,29 +89,40 @@ def start_bot():
         application.add_handler(CommandHandler("genkey", gen_key))
         logger.info("Command handlers registered: /start, /genkey")
 
-        logger.info("Starting bot polling — bot is now listening for updates")
-        application.run_polling(close_loop=False)
+        logger.info("Starting bot polling on main thread — listening for updates")
+        application.run_polling()
         logger.info("Bot polling stopped (run_polling returned)")
     except Exception as exc:
-        logger.exception("start_bot() raised an unhandled exception: %s", exc)
+        logger.exception("run_bot_main_thread() raised an unhandled exception: %s", exc)
 
 # ---------------------------------------------------------------------------
-# Start Telegram bot polling in a background thread at module import time.
-# This executes whenever app.py is imported (e.g. by gunicorn via wsgi.py),
-# so the bot is always alive alongside the WSGI server.
+# When gunicorn imports app.py (via wsgi.py), start Flask in a background
+# daemon thread so the WSGI server keeps running, then run the bot on the
+# main thread where asyncio signal handlers are permitted.
+#
+# When app.py is run directly (`python app.py`), the same logic applies via
+# the __main__ block below.
 # ---------------------------------------------------------------------------
-logger.info("Spawning Telegram bot background thread...")
-try:
-    _bot_thread = threading.Thread(target=start_bot, daemon=True, name="telegram-bot")
-    _bot_thread.start()
-    logger.info("Bot thread started (thread id: %s)", _bot_thread.ident)
-except Exception as _exc:
-    logger.exception("Failed to start bot thread: %s", _exc)
+_running_as_main = getattr(_main_module, "__file__", None) and \
+    os.path.abspath(_main_module.__file__) == os.path.abspath(__file__)
+
+if not _running_as_main:
+    # Imported by gunicorn / wsgi.py — start Flask in background, bot on main thread
+    logger.info("Module imported (gunicorn context) — starting Flask daemon thread...")
+    try:
+        _flask_thread = threading.Thread(target=run_flask, daemon=True, name="flask-server")
+        _flask_thread.start()
+        logger.info("Flask daemon thread started (thread id: %s)", _flask_thread.ident)
+    except Exception as _exc:
+        logger.exception("Failed to start Flask daemon thread: %s", _exc)
+
+    logger.info("Running bot polling on main thread (gunicorn worker)...")
+    run_bot_main_thread()
 
 if __name__ == "__main__":
-    # Chạy Flask trong thread phụ
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    # Direct execution: Flask in background daemon thread, bot on main thread
+    logger.info("Direct execution — starting Flask daemon thread...")
+    flask_thread = threading.Thread(target=run_flask, daemon=True, name="flask-server")
     flask_thread.start()
-
-    # Chạy bot ở main thread (bot thread đã được spawn ở trên, run_polling sẽ block)
-    flask_thread.join()
+    logger.info("Flask daemon thread started, running bot on main thread...")
+    run_bot_main_thread()
