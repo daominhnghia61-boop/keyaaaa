@@ -90,10 +90,23 @@ def start_bot():
     except Exception as exc:
         logger.exception("start_bot() raised an unhandled exception: %s", exc)
 
+# ---------------------------------------------------------------------------
+# Start Telegram bot polling in a background thread at module import time.
+# This executes whenever app.py is imported (e.g. by gunicorn via wsgi.py),
+# so the bot is always alive alongside the WSGI server.
+# ---------------------------------------------------------------------------
+logger.info("Spawning Telegram bot background thread...")
+try:
+    _bot_thread = threading.Thread(target=start_bot, daemon=True, name="telegram-bot")
+    _bot_thread.start()
+    logger.info("Bot thread started (thread id: %s)", _bot_thread.ident)
+except Exception as _exc:
+    logger.exception("Failed to start bot thread: %s", _exc)
+
 if __name__ == "__main__":
     # Chạy Flask trong thread phụ
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
-    # Chạy bot ở main thread
-    start_bot()
+    # Chạy bot ở main thread (bot thread đã được spawn ở trên, run_polling sẽ block)
+    flask_thread.join()
