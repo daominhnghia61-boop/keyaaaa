@@ -71,11 +71,15 @@ async def gen_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("genkey", gen_key))
 
-# ---------------- INIT BOT (QUAN TRỌNG) ----------------
+# ---------------- INIT BOT ----------------
+async def init_bot():
+    await application.initialize()
+    await application.start()
 
+loop = asyncio.get_event_loop()
+loop.run_until_complete(init_bot())
 
 # ---------------- FLASK ROUTES ----------------
-
 @app.route("/")
 def home():
     return "SERVER OK"
@@ -104,7 +108,6 @@ def check_key():
 def telegram_webhook():
     data = request.get_json(force=True)
 
-    loop = asyncio.get_event_loop()
     loop.create_task(
         application.process_update(
             Update.de_json(data, application.bot)
@@ -122,4 +125,4 @@ def set_webhook():
         )
         return "OK"
 
-    return asyncio.run(setup())
+    return loop.run_until_complete(setup())
