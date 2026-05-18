@@ -76,7 +76,9 @@ async def init_bot():
     await application.initialize()
     await application.start()
 
-loop = asyncio.get_event_loop()
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
 loop.run_until_complete(init_bot())
 
 # ---------------- FLASK ROUTES ----------------
@@ -108,11 +110,12 @@ def check_key():
 def telegram_webhook():
     data = request.get_json(force=True)
 
-    loop.create_task(
-        application.process_update(
-            Update.de_json(data, application.bot)
-        )
-    )
+    asyncio.run_coroutine_threadsafe(
+    application.process_update(
+        Update.de_json(data, application.bot)
+    ),
+    loop
+)
 
     return "OK"
 
@@ -125,4 +128,5 @@ def set_webhook():
         )
         return "OK"
 
-    return loop.run_until_complete(setup())
+    future = asyncio.run_coroutine_threadsafe(setup(), loop)
+return future.result()
