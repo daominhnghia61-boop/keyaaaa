@@ -104,7 +104,8 @@ def check_key():
 def telegram_webhook():
     data = request.get_json(force=True)
 
-    asyncio.run(
+    loop = asyncio.get_event_loop()
+    loop.create_task(
         application.process_update(
             Update.de_json(data, application.bot)
         )
