@@ -85,7 +85,7 @@ def start_bot():
         logger.info("Command handlers registered: /start, /genkey")
 
         logger.info("Starting bot polling — bot is now listening for updates")
-        application.run_polling()
+        application.run_polling(close_loop=False)
         logger.info("Bot polling stopped (run_polling returned)")
     except Exception as exc:
         logger.exception("start_bot() raised an unhandled exception: %s", exc)
