@@ -60,13 +60,18 @@ def run_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, threaded=True)
 
-if __name__ == "__main__":
-    # Chạy Flask trong thread phụ
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    # Chạy bot ở main thread
+def start_bot():
+    """Build and start the Telegram bot polling in the current thread.
+    Call this from a background thread so it does not block the WSGI server."""
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("genkey", gen_key))
     application.run_polling()
+
+if __name__ == "__main__":
+    # Chạy Flask trong thread phụ
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
+    # Chạy bot ở main thread
+    start_bot()
