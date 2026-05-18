@@ -13,6 +13,12 @@ BOT_TOKEN = ("8631913457:AAGVoswxWXSIVUve7XqV2FnZtizo0jEOJwM")  # set trên Rail
 ADMIN_ID = 8522186660
 KEYS_FILE = "keys.json"
 
+# 🔥 DOMAIN CỐ ĐỊNH CỦA BẠN
+WEBHOOK_URL = "https://web-production-c4ed6.up.railway.app"
+
+# 🔒 path bí mật (không dùng token trực tiếp)
+SECRET_PATH = "botwebhook"
+
 # ---------------- LOG ----------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,7 +41,7 @@ def save_keys(keys):
 application = Application.builder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Bot đang chạy!")
+    await update.message.reply_text("🤖 Bot đang chạy ngon rồi!")
 
 async def gen_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -59,7 +65,10 @@ async def gen_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keys[key] = {"expire": expire}
     save_keys(keys)
 
-    await update.message.reply_text(f"✅ Key: `{key}`\n📅 Hết hạn: {expire}", parse_mode="Markdown")
+    await update.message.reply_text(
+        f"✅ Key: `{key}`\n📅 Hết hạn: {expire}",
+        parse_mode="Markdown"
+    )
 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("genkey", gen_key))
@@ -83,8 +92,8 @@ def check_key():
 
     return "EXPIRED"
 
-# 👉 webhook endpoint
-@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
+# 👉 webhook nhận update từ Telegram
+@app.route(f"/webhook/{SECRET_PATH}", methods=["POST"])
 async def telegram_webhook():
     data = request.get_json(force=True)
     update = Update.de_json(data, application.bot)
@@ -94,16 +103,17 @@ async def telegram_webhook():
 # ---------------- START ----------------
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-
-    # set webhook khi start
     import asyncio
 
     async def setup():
+        logger.info("Setting webhook...")
+        await application.bot.delete_webhook(drop_pending_updates=True)
         await application.bot.set_webhook(
-            url=f"https://{os.getenv('RAILWAY_STATIC_URL')}/webhook/{BOT_TOKEN}"
+            url=f"{WEBHOOK_URL}/webhook/{SECRET_PATH}"
         )
+        logger.info("Webhook set DONE")
 
     asyncio.run(setup())
 
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
