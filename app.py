@@ -108,16 +108,24 @@ def check_key():
 # ---------------- WEBHOOK ----------------
 @app.route(f"/webhook/{SECRET_PATH}", methods=["POST"])
 def telegram_webhook():
-    data = request.get_json(force=True)
+    try:
+        data = request.get_json(silent=True)
 
-    asyncio.run_coroutine_threadsafe(
-        application.process_update(
-            Update.de_json(data, application.bot)
-        ),
-        loop
-    )
+        if not data:
+            return "NO DATA", 200
 
-    return "OK"
+        asyncio.run_coroutine_threadsafe(
+            application.process_update(
+                Update.de_json(data, application.bot)
+            ),
+            loop
+        )
+
+        return "OK", 200
+
+    except Exception as e:
+        print("WEBHOOK ERROR:", e)
+        return "ERROR", 200
 
 # ---------------- SET WEBHOOK ----------------
 @app.route("/setwebhook")
