@@ -81,12 +81,12 @@ def webhook():
     try:
         data = request.get_json(force=True)
         update = Update.de_json(data, bot)
-        application.process_update(update)
+        # PHẢI CÓ await
+        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         return "OK", 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return "ERROR", 500
-
 # ========== MAIN ==========
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
