@@ -105,7 +105,7 @@ def check_key():
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     def run_api():
-        app.run(host="8080", port=int(os.environ.get("PORT", 5000)))
+        app.run(host="0.0.0.0", port=int("PORT", 8080)))
 
     def run_bot():
         application.run_polling()
