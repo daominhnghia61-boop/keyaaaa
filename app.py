@@ -3,7 +3,7 @@ import os
 import datetime
 import secrets
 import logging
-import asyncio
+import threading
 
 from flask import Flask, request
 from telegram import Update
@@ -14,36 +14,42 @@ BOT_TOKEN = "8631913457:AAGVoswxWXSIVUve7XqV2FnZtizo0jEOJwM"
 ADMIN_ID = 8522186660
 KEYS_FILE = "keys.json"
 
-WEBHOOK_URL = "https://web-production-c4ed6.up.railway.app"
-SECRET_PATH = "botwebhook"
+# 👉 LINK RAILWAY CỦA BẠN (THÊM VÀO ĐÂY)
+RAILWAY_URL = "https://web-production-c4ed6.up.railway.app"
 
 # ---------------- LOG ----------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------- APP ----------------
+# ---------------- FLASK ----------------
 app = Flask(__name__)
 
-# ---------------- KEY STORAGE ----------------
+# ---------------- KEY SYSTEM ----------------
 def load_keys():
     if not os.path.exists(KEYS_FILE):
         return {}
-    with open(KEYS_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(KEYS_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
 
 def save_keys(keys):
     with open(KEYS_FILE, "w") as f:
         json.dump(keys, f, indent=4)
 
-# ---------------- TELEGRAM ----------------
+# ---------------- BOT ----------------
 application = Application.builder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Bot đang chạy ngon rồi!")
+    await update.message.reply_text(
+        "🤖 Bot chạy OK\n"
+        f"🌐 Check key: {RAILWAY_URL}/check?key=YOUR_KEY"
+    )
 
-async def gen_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def genkey(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Bạn không phải admin!")
+        await update.message.reply_text("❌ Không có quyền!")
         return
 
     if not context.args:
@@ -64,28 +70,16 @@ async def gen_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_keys(keys)
 
     await update.message.reply_text(
-        f"✅ Key: `{key}`\n📅 Hết hạn: {expire}",
+        f"✅ KEY: `{key}`\n"
+        f"📅 Hết hạn: {expire}\n\n"
+        f"🔗 Check: {RAILWAY_URL}/check?key={key}",
         parse_mode="Markdown"
     )
 
 application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("genkey", gen_key))
+application.add_handler(CommandHandler("genkey", genkey))
 
-# ---------------- INIT BOT ----------------
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
-
-async def init_bot():
-    await application.initialize()
-    await application.start()
-
-loop.run_until_complete(init_bot())
-
-# ---------------- FLASK ROUTES ----------------
-@app.route("/")
-def home():
-    return "SERVER OK"
-
+# ---------------- API CHECK ----------------
 @app.route("/check")
 def check_key():
     key = request.args.get("key", "").strip().upper()
@@ -98,43 +92,23 @@ def check_key():
     if key not in keys:
         return "INVALID"
 
-    expire = datetime.datetime.fromisoformat(keys[key]["expire"])
+    try:
+        expire = datetime.datetime.fromisoformat(keys[key]["expire"])
+    except:
+        return "INVALID_DATA"
 
     if datetime.datetime.utcnow() > expire:
         return "EXPIRED"
 
     return "VALID"
 
-# ---------------- WEBHOOK ----------------
-@app.route(f"/webhook/{SECRET_PATH}", methods=["POST"])
-def telegram_webhook():
-    try:
-        data = request.get_json(silent=True)
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    def run_api():
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
-        if not data:
-            return "NO DATA", 200
+    def run_bot():
+        application.run_polling()
 
-        asyncio.run_coroutine_threadsafe(
-            application.process_update(
-                Update.de_json(data, application.bot)
-            ),
-            loop
-        )
-
-        return "OK", 200
-
-    except Exception as e:
-        print("WEBHOOK ERROR:", e)
-        return "ERROR", 200
-
-# ---------------- SET WEBHOOK ----------------
-@app.route("/setwebhook")
-def set_webhook():
-    async def setup():
-        await application.bot.set_webhook(
-            url=f"{WEBHOOK_URL}/webhook/{SECRET_PATH}"
-        )
-        return "OK"
-
-    future = asyncio.run_coroutine_threadsafe(setup(), loop)
-    return future.result()
+    threading.Thread(target=run_api).start()
+    run_bot()
