@@ -8,7 +8,6 @@ from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# ========== CẤU HÌNH ==========
 BOT_TOKEN = "8631913457:AAGVoswxWXSIVUve7XqV2FnZtizo0jEOJwM"
 ADMIN_ID = 8522186660
 KEYS_FILE = "keys.json"
@@ -18,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ========== KEY STORAGE ==========
 def load_keys():
     if not os.path.exists(KEYS_FILE):
         return {}
@@ -29,7 +27,6 @@ def save_keys(keys):
     with open(KEYS_FILE, "w") as f:
         json.dump(keys, f, indent=4)
 
-# ========== TELEGRAM HANDLERS ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Bot key auth đang chạy!\nAdmin dùng /genkey <số_ngày>")
 
@@ -51,12 +48,8 @@ async def gen_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keys = load_keys()
     keys[key] = {"expire": expire, "created_by": update.effective_user.id}
     save_keys(keys)
-    await update.message.reply_text(
-        f"✅ Key: `{key}`\n📅 Hết hạn: {expire}",
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text(f"✅ Key: `{key}`\n📅 Hết hạn: {expire}", parse_mode="Markdown")
 
-# ========== FLASK ROUTES ==========
 @app.route("/")
 def home():
     return "Bot is running!"
@@ -71,33 +64,43 @@ def check_key():
         return "VALID"
     return "EXPIRED"
 
-# ========== WEBHOOK ==========
+# ========== BOT SETUP ==========
 bot = Bot(token=BOT_TOKEN)
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("genkey", gen_key))
+
+# Tạo event loop riêng cho bot
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+# Chạy application trong loop riêng
+def run_bot():
+    loop.run_forever()
+
+import threading
+threading.Thread(target=run_bot, daemon=True).start()
 
 @app.route("/webhook", methods=['POST'])
 def webhook():
     try:
         data = request.get_json(force=True)
         update = Update.de_json(data, bot)
-        # PHẢI CÓ await
+        # Dùng loop đã tạo
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         return "OK", 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return "ERROR", 500
-# ========== MAIN ==========
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     
     # Set webhook
-    import asyncio
     async def set_webhook():
         await bot.delete_webhook(drop_pending_updates=True)
         await bot.set_webhook(url=f"https://web-production-c4ed6.up.railway.app/webhook")
-        logger.info("✅ Webhook set successfully")
+        logger.info("Webhook set done")
     
     asyncio.run(set_webhook())
     
